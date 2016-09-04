@@ -1,14 +1,28 @@
 declare var gl: WebGLRenderingContext
 
 interface Renderer {
-    render(): void
+    render(projectionMat: GLM.IArray, viewMat: GLM.IArray): void
+}
+
+declare namespace Gamepad {
+    interface Gamepad {
+        pose: GLM.IArray // relatively new, missing in all typings
+        haptics: any
+    }
 }
 
 class WebVRMixin {
     vrDisplay: VRDisplay
 
     PLAYER_HEIGHT = 1.65
+
+    projectionMat = mat4.create()
+    viewMat = mat4.create()
+    gamepadMat = mat4.create()
+    gamepadColor = vec4.create()
     standingPosition = vec3.create()
+
+    debugGeom: any = null
 
     constructor(
         private canvas: HTMLCanvasElement,
@@ -25,24 +39,28 @@ class WebVRMixin {
         }
     }
 
-    onVRRequestPresent () {
+    initWebGL() {
+        // TODO!!
+    }
+
+    onVRRequestPresent() {
         this.vrDisplay.requestPresent([{ source: this.canvas }]).then(
-            () => {},
+            () => { },
             () => console.error("requestPresent failed.")
         )
     }
 
-    onVRExitPresent () {
+    onVRExitPresent() {
         if (!this.vrDisplay.isPresenting)
             return
 
         this.vrDisplay.exitPresent().then(
-            () => {},
+            () => { },
             () => console.error("exitPresent failed.")
         )
     }
 
-    onVRPresentChange () {
+    onVRPresentChange() {
         this.onResize(); // TODO
 
         if (this.vrDisplay.isPresenting) {
@@ -73,7 +91,7 @@ class WebVRMixin {
             if (this.vrDisplay.stageParameters &&
                 this.vrDisplay.stageParameters.sizeX > 0 &&
                 this.vrDisplay.stageParameters.sizeZ > 0) {
-              // TODO: resize world? relevant?
+                // TODO: resize world? relevant?
             }
 
             // TODO!: add "Reset Pose" button that calls vrDisplay.resetPose()
@@ -117,6 +135,101 @@ class WebVRMixin {
         }
         else {
             vec3.add(this.standingPosition, position, [0, this.PLAYER_HEIGHT, 0]);
+        }
+    }
+
+    renderSceneView(poseInMat: GLM.IArray, gamepads: Array<Gamepad.Gamepad>, eye: VREyeParameters) {
+        Gamepad
+        if (eye) {
+            mat4.translate(this.viewMat, poseInMat, eye.offset)
+            mat4.perspectiveFromFieldOfView(this.projectionMat, eye.fieldOfView, 0.1, 1024.0)
+            mat4.invert(this.viewMat, this.viewMat)
+        }
+        else {
+            mat4.perspective(this.projectionMat, Math.PI * 0.4, this.canvas.width / this.canvas.height, 0.1, 1024.0)
+            mat4.invert(this.viewMat, poseInMat)
+        }
+
+        this.renderer.render(this.projectionMat, this.viewMat)
+
+        // TODO? debug geom part -> https://github.com/toji/webgl-utils (no NPM package!)
+
+        // Render every gamepad with a pose we found
+        for (let gamepad of gamepads) {
+          // Because this sample is done in standing space we need to apply
+          // the same transformation to the gamepad pose as we did the
+          // VRDisplay's pose.
+          this.getPoseMatrix(this.gamepadMat, gamepad.pose, true);
+
+          // Scaled down to from 1 meter to be something closer to the size of
+          // a hand.
+          mat4.scale(this.gamepadMat, this.gamepadMat, [0.1, 0.1, 0.1]);
+
+          // Loop through all the gamepad's axes and rotate the cube by their
+          // value.
+          for (var j = 0; j < gamepad.axes.length; ++j) {
+              switch (j % 3) {
+                  case 0:
+                      mat4.rotateX(this.gamepadMat, this.gamepadMat, gamepad.axes[j] * Math.PI);
+                      break;
+                  case 1:
+                      mat4.rotateY(this.gamepadMat, this.gamepadMat, gamepad.axes[j] * Math.PI);
+                      break;
+                  case 2:
+                      mat4.rotateZ(this.gamepadMat, this.gamepadMat, gamepad.axes[j] * Math.PI);
+                      break;
+              }
+          }
+
+          // Show the gamepad's cube as red if any buttons are pressed, blue
+          // otherwise.
+          vec4.set(this.gamepadColor, 0, 0, 1, 1);
+          for (var j = 0; j < gamepad.buttons.length; ++j) {
+              if (gamepad.buttons[j].pressed) {
+                  vec4.set(this.gamepadColor, gamepad.buttons[j].value, 0, 0, 1);
+                  break;
+              }
+          }
+
+          this.debugGeom.drawBoxWithMatrix(this.gamepadMat, this.gamepadColor);
+
+        }
+    }
+
+    onAnimationFrame(t: number) {
+        // stats.begin
+
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+        if (this.vrDisplay) {
+            this.vrDisplay.requestAnimationFrame(this.onAnimationFrame.bind(this))
+
+            // Loop over every gamepad and if we find any that have a pose use it.
+            let vrGamepads: Array<Gamepad.Gamepad> = []
+            for (let gamepad of navigator.getGamepads()) {
+                // The array may contain undefined gamepads, so check for that as
+                // well as a non-null pose.
+                if (!gamepad)
+                    continue
+
+                if (gamepad.pose)
+                    vrGamepads.push(gamepad)
+
+                if ("haptics" in gamepad && gamepad.haptics.length > 0) {
+                    for (let button of gamepad.buttons) {
+                        if (button.pressed) {
+                            // Vibrate the gamepad using to the value of the button as
+                            // the vibration intensity.
+                            gamepad.haptics[0].vibrate(button.value, 100);
+                            break;
+                        }
+                    }
+                }
+
+            }
+
+
+
         }
     }
 }

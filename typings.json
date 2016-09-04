@@ -3,6 +3,7 @@
     "lodash": "github:DefinitelyTyped/DefinitelyTyped/lodash/lodash.d.ts#f696b8c0c2d6e2a31c794a3752f68de85dce4c2b"
   },
   "globalDependencies": {
+    "gamepad": "registry:dt/gamepad#0.0.0+20160317120654",
     "gl-matrix": "registry:dt/gl-matrix#2.2.2+20160701060731",
     "webvr-api": "registry:dt/webvr-api#0.0.0+20160608064235"
   }
