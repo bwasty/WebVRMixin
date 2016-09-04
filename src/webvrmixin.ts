@@ -6,7 +6,7 @@ interface Renderer {
 
 declare namespace Gamepad {
     interface Gamepad {
-        pose: GLM.IArray // relatively new, missing in all typings
+        pose: VRPose // relatively new, missing in all typings
         haptics: any
     }
 }
@@ -18,6 +18,7 @@ class WebVRMixin {
 
     projectionMat = mat4.create()
     viewMat = mat4.create()
+    poseMat = mat4.create()
     gamepadMat = mat4.create()
     gamepadColor = vec4.create()
     standingPosition = vec3.create()
@@ -120,13 +121,13 @@ class WebVRMixin {
         }
     }
 
-    getPoseMatrix(out: GLM.IArray, pose: any, isGamepad: boolean) {
+    getPoseMatrix(out: GLM.IArray, pose: VRPose, isGamepad: boolean) {
         let orientation = pose.orientation || [0, 0, 0, 1]
         let position = pose.position
         if (!position) {
             // If this is a gamepad without a pose set it out in front of us so
             // we can see it.
-            position = isGamepad ? [0.1, -0.1, -0.5] : [0, 0, 0];
+            position = new Float32Array(isGamepad ? [0.1, -0.1, -0.5] : [0, 0, 0])
         }
 
         if (this.vrDisplay.stageParameters) {
@@ -228,7 +229,10 @@ class WebVRMixin {
 
             }
 
+            let pose = this.vrDisplay.getPose()
+            this.getPoseMatrix(this.poseMat, pose, false)
 
+            // TODO!!! port final block
 
         }
     }
