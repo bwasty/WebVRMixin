@@ -74,6 +74,7 @@ class WebVRMixin {
         }
     }
 
+    // TODO!!: call!
     setupDisplay() {
         if (!navigator.getVRDisplays) {
             console.error("Your browser does not support WebVR. See <a href='http://webvr.info'>webvr.info</a> for assistance.")
@@ -199,11 +200,12 @@ class WebVRMixin {
 
     onAnimationFrame(t: number) {
         // stats.begin
+        let vrDisplay = this.vrDisplay
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-        if (this.vrDisplay) {
-            this.vrDisplay.requestAnimationFrame(this.onAnimationFrame.bind(this))
+        if (vrDisplay) {
+            vrDisplay.requestAnimationFrame(this.onAnimationFrame.bind(this))
 
             // Loop over every gamepad and if we find any that have a pose use it.
             let vrGamepads: Array<Gamepad.Gamepad> = []
@@ -229,11 +231,41 @@ class WebVRMixin {
 
             }
 
-            let pose = this.vrDisplay.getPose()
-            this.getPoseMatrix(this.poseMat, pose, false)
+            let pose = vrDisplay.getPose()
+            let poseMat = this.poseMat
+            this.getPoseMatrix(poseMat, pose, false)
 
-            // TODO!!! port final block
+            let canvas = this.canvas,
+                width = canvas.width,
+                height = canvas.height
+            if (vrDisplay.isPresenting) {
+                gl.viewport(0, 0, width * 0.5, height)
+                this.renderSceneView(poseMat, vrGamepads, vrDisplay.getEyeParameters("left"))
 
+                gl.viewport(width * 0.5, 0, width * 0.5, height)
+                this.renderSceneView(poseMat, vrGamepads, vrDisplay.getEyeParameters("right"))
+
+                vrDisplay.submitFrame(pose)
+            }
+            else {
+                gl.viewport(0, 0, width, height)
+                this.renderSceneView(poseMat, vrGamepads, null)
+                // stats.renderOrtho
+            }
         }
+        else {
+            window.requestAnimationFrame(this.onAnimationFrame.bind(this))
+
+            // No VRDisplay found.
+            gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+            mat4.perspective(this.projectionMat, Math.PI*0.4, this.canvas.width / this.canvas.height, 0.1, 1024.0);
+            mat4.identity(this.viewMat);
+            mat4.translate(this.viewMat, this.viewMat, [0, -this.PLAYER_HEIGHT, 0]);
+            this.renderer.render(this.projectionMat, this.viewMat /*, stats */);
+
+            //stats.renderOrtho();
+        }
+
+        // stats.end()
     }
 }
