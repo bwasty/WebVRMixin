@@ -1,4 +1,7 @@
+
 declare var gl: WebGLRenderingContext
+declare var WGLUDebugGeometry: any
+declare var WGLUStats: any
 
 interface Renderer {
     render(projectionMat: GLM.IArray, viewMat: GLM.IArray): void
@@ -11,7 +14,7 @@ declare namespace Gamepad {
     }
 }
 
-class WebVRMixin {
+export class WebVRMixin {
     vrDisplay: VRDisplay
 
     PLAYER_HEIGHT = 1.65
@@ -23,13 +26,23 @@ class WebVRMixin {
     gamepadColor = vec4.create()
     standingPosition = vec3.create()
 
+    stats: any = null
     debugGeom: any = null
 
     constructor(
         private canvas: HTMLCanvasElement,
         gl: WebGLRenderingContext,
         private renderer: Renderer) {
-        window["gl"] = gl
+        if (!window["gl"])
+            window["gl"] = gl // TODO!: this.gl
+
+        this.stats = new WGLUStats(gl)
+        this.debugGeom = new WGLUDebugGeometry(gl)
+
+        // Wait until we have a WebGL context to resize and start rendering.
+        window.addEventListener("resize", this.onResize.bind(this), false)
+        this.onResize()
+        window.requestAnimationFrame(this.onAnimationFrame.bind(this));
     }
 
     static glAttribs() {
